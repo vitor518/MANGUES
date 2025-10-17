@@ -27,7 +27,7 @@ export function Navbar() {
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-2 hover:opacity-90 transition-opacity">
             <Leaf className="h-8 w-8" />
-            <span className="text-xl font-bold hidden sm:inline">🌳 Mundo dos Mangues 🦀</span>
+            <span className="text-xl font-bold hidden sm:inline">🌳Mundo dos Mangues🦀</span>
             <span className="text-xl font-bold sm:hidden">Mangues</span>
           </Link>
 
