@@ -1,19 +1,16 @@
 -- ====================================================================================
---                  SCRIPT COMPLETO DO BANCO DE DADOS - PROJETO MANGUES
+--              SCRIPT COMPLETO DO BANCO DE DADOS - PROJETO MANGUES (CORRIGIDO)
 -- ====================================================================================
--- Este script foi corrigido e unificado para incluir todas as tabelas necessárias
--- para o funcionamento completo da aplicação, incluindo o sistema de gamificação.
---
--- Versão: 2.1
--- Data: 2024-10-17
--- Responsável: Jules (Engenheiro de Software AI)
+-- Versão: 2.2
+-- Data: 2025-10-17
+-- Correção: Adição de restrições UNIQUE para 'ON CONFLICT' e inclusão da tabela 'ameacas'.
 -- ====================================================================================
 
 -- ============================================
 -- 1. TABELAS PRINCIPAIS
 -- ============================================
 
--- Tabela de usuários (versão correta, com gamificação e senha com hash)
+-- Tabela de usuários
 CREATE TABLE IF NOT EXISTS usuarios (
     id SERIAL PRIMARY KEY,
     nome VARCHAR(100) NOT NULL,
@@ -30,10 +27,10 @@ CREATE TABLE IF NOT EXISTS usuarios (
 COMMENT ON TABLE usuarios IS 'Tabela de usuários do sistema, com pontuação e visitas.';
 COMMENT ON COLUMN usuarios.senha_hash IS 'Senha criptografada com bcrypt.';
 
--- Tabela de espécies (mantida do script original)
+-- Tabela de espécies (CORRIGIDA: nome agora é UNIQUE para permitir ON CONFLICT)
 CREATE TABLE IF NOT EXISTS especies (
     id SERIAL PRIMARY KEY,
-    nome VARCHAR(255) NOT NULL,
+    nome VARCHAR(255) NOT NULL UNIQUE, -- CORREÇÃO APLICADA AQUI
     descricao TEXT NOT NULL,
     habitat TEXT NOT NULL,
     imagem VARCHAR(10) NOT NULL,
@@ -43,17 +40,30 @@ CREATE TABLE IF NOT EXISTS especies (
 
 COMMENT ON TABLE especies IS 'Espécies de animais e plantas do mangue.';
 
--- Tabela de adaptações das espécies (mantida do script original)
+-- Tabela de adaptações das espécies (CORRIGIDA: adicionado UNIQUE(especie_id, adaptacao))
 CREATE TABLE IF NOT EXISTS adaptacoes (
     id SERIAL PRIMARY KEY,
     especie_id INTEGER REFERENCES especies(id) ON DELETE CASCADE,
     adaptacao TEXT NOT NULL,
-    criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (especie_id, adaptacao) -- CORREÇÃO APLICADA AQUI
 );
 
 COMMENT ON TABLE adaptacoes IS 'Adaptações especiais de cada espécie.';
 
--- Tabela de contatos (mantida do script original)
+-- Tabela de ameaças ao ecossistema (TABELA ADICIONAL NECESSÁRIA)
+CREATE TABLE IF NOT EXISTS ameacas (
+    id SERIAL PRIMARY KEY,
+    titulo VARCHAR(100) NOT NULL UNIQUE,
+    descricao TEXT NOT NULL,
+    impacto VARCHAR(255) NOT NULL,
+    emoji VARCHAR(10) NOT NULL,
+    criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+COMMENT ON TABLE ameacas IS 'Lista de ameaças ao ecossistema do mangue.';
+
+-- Tabela de contatos
 CREATE TABLE IF NOT EXISTS contatos (
     id SERIAL PRIMARY KEY,
     usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
@@ -69,7 +79,7 @@ CREATE TABLE IF NOT EXISTS contatos (
 COMMENT ON TABLE contatos IS 'Mensagens enviadas pelo formulário de contato.';
 
 -- ============================================
--- 2. TABELAS DE GAMIFICAÇÃO (NOVAS)
+-- 2. TABELAS DE GAMIFICAÇÃO
 -- ============================================
 
 -- Tabela de conquistas disponíveis no sistema
@@ -111,29 +121,29 @@ COMMENT ON TABLE estatisticas_jogos IS 'Registra cada partida que um usuário jo
 CREATE TABLE IF NOT EXISTS especies_visualizadas (
     id SERIAL PRIMARY KEY,
     usuario_id INTEGER REFERENCES usuarios(id) ON DELETE CASCADE,
-    especie_id INTEGER NOT NULL,
+    especie_id INTEGER REFERENCES especies(id) ON DELETE CASCADE,
     data_visualizacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(usuario_id, especie_id)
 );
 
 COMMENT ON TABLE especies_visualizadas IS 'Diário de bordo das espécies que o usuário encontrou.';
 
--- Tabela de ameaças que o usuário já visualizou
+-- Tabela de ameaças que o usuário já visualizou (CORRIGIDA: referência a tabela 'ameacas')
 CREATE TABLE IF NOT EXISTS ameacas_visualizadas (
     id SERIAL PRIMARY KEY,
     usuario_id INTEGER REFERENCES usuarios(id) ON DELETE CASCADE,
-    ameaca_id INTEGER NOT NULL,
+    ameaca_id INTEGER REFERENCES ameacas(id) ON DELETE CASCADE, -- CORREÇÃO APLICADA AQUI
     data_visualizacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(usuario_id, ameaca_id)
 );
 
 COMMENT ON TABLE ameacas_visualizadas IS 'Registra as ameaças que o usuário já aprendeu.';
 
--- Tabela de ações contra ameaças que o usuário completou
+-- Tabela de ações contra ameaças que o usuário completou (CORRIGIDA: referência a tabela 'ameacas')
 CREATE TABLE IF NOT EXISTS acoes_ameacas (
     id SERIAL PRIMARY KEY,
     usuario_id INTEGER REFERENCES usuarios(id) ON DELETE CASCADE,
-    ameaca_id INTEGER NOT NULL,
+    ameaca_id INTEGER REFERENCES ameacas(id) ON DELETE CASCADE, -- CORREÇÃO APLICADA AQUI
     acao_index INTEGER NOT NULL,
     data_conclusao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(usuario_id, ameaca_id, acao_index)
@@ -151,12 +161,13 @@ CREATE INDEX IF NOT EXISTS idx_adaptacoes_especie ON adaptacoes(especie_id);
 CREATE INDEX IF NOT EXISTS idx_contatos_usuario ON contatos(usuario_id);
 CREATE INDEX IF NOT EXISTS idx_stats_jogos_usuario ON estatisticas_jogos(usuario_id);
 CREATE INDEX IF NOT EXISTS idx_user_conquistas ON usuario_conquistas(usuario_id, conquista_id);
+CREATE INDEX IF NOT EXISTS idx_ameacas_titulo ON ameacas(titulo); -- NOVO ÍNDICE
 
 -- ============================================
 -- 4. DADOS INICIAIS (SEMENTE)
 -- ============================================
 
--- Inserir espécies de exemplo
+-- Inserir espécies de exemplo (usa ON CONFLICT (nome))
 INSERT INTO especies (nome, descricao, habitat, imagem) VALUES
 ('Caranguejo-Uçá', 'O caranguejo-uçá é o rei dos mangues! Ele tem uma carapaça dura e garras fortes. Durante a lua cheia, fazem a "andada" para encontrar parceiros. São engenheiros do mangue, cavando túneis que ajudam a circular ar e água.', 'Vive em tocas no solo lamacento do mangue', '🦀'),
 ('Garça-Branca', 'Uma ave elegante com penas branquinhas. É uma pescadora expert, ficando super quieta e sendo rápida como um ninja para pegar peixes.', 'Encontrada nas margens e áreas rasas dos mangues', '🦆'),
@@ -166,17 +177,37 @@ INSERT INTO especies (nome, descricao, habitat, imagem) VALUES
 ('Mangue-Branco', 'Com folhas mais claras, vive um pouco mais longe da água. Suas raízes especiais ajudam a planta a respirar.', 'Cresce em áreas mais secas do mangue', '🌿')
 ON CONFLICT (nome) DO NOTHING;
 
--- Inserir adaptações das espécies
+-- Inserir adaptações das espécies (usa ON CONFLICT DO NOTHING)
+-- O ON CONFLICT agora funciona graças à restrição UNIQUE(especie_id, adaptacao)
 INSERT INTO adaptacoes (especie_id, adaptacao) VALUES
-(1, 'Brânquias modificadas para respirar fora da água'), (1, 'Garras fortes para cavar buracos profundos'), (1, 'Carapaça resistente contra predadores'),
-(2, 'Bico longo e pontiagudo para pescar'), (2, 'Pernas longas para andar na água rasa'), (2, 'Visão aguçada para detectar peixes'),
-(3, 'Raízes aéreas para sustentação no solo mole'), (3, 'Folhas especiais que eliminam excesso de sal'), (3, 'Sementes que germinam ainda na árvore'),
-(4, 'Garras extremamente fortes'), (4, 'Habilidade de subir em árvores'), (4, 'Respiração adaptada para terra e água'),
-(5, 'Capacidade de pular fora da água'), (5, 'Nadadeiras potentes para nadar rápido'), (5, 'Sistema de navegação em grupo'),
-(6, 'Raízes respiratórias (pneumatóforos)'), (6, 'Tolerância a diferentes níveis de sal'), (6, 'Folhas que refletem luz solar excessiva')
+((SELECT id FROM especies WHERE nome = 'Caranguejo-Uçá'), 'Brânquias modificadas para respirar fora da água'),
+((SELECT id FROM especies WHERE nome = 'Caranguejo-Uçá'), 'Garras fortes para cavar buracos profundos'),
+((SELECT id FROM especies WHERE nome = 'Caranguejo-Uçá'), 'Carapaça resistente contra predadores'),
+((SELECT id FROM especies WHERE nome = 'Garça-Branca'), 'Bico longo e pontiagudo para pescar'),
+((SELECT id FROM especies WHERE nome = 'Garça-Branca'), 'Pernas longas para andar na água rasa'),
+((SELECT id FROM especies WHERE nome = 'Garça-Branca'), 'Visão aguçada para detectar peixes'),
+((SELECT id FROM especies WHERE nome = 'Mangue-Vermelho'), 'Raízes aéreas para sustentação no solo mole'),
+((SELECT id FROM especies WHERE nome = 'Mangue-Vermelho'), 'Folhas especiais que eliminam excesso de sal'),
+((SELECT id FROM especies WHERE nome = 'Mangue-Vermelho'), 'Sementes que germinam ainda na árvore'),
+((SELECT id FROM especies WHERE nome = 'Guaiamum'), 'Garras extremamente fortes'),
+((SELECT id FROM especies WHERE nome = 'Guaiamum'), 'Habilidade de subir em árvores'),
+((SELECT id FROM especies WHERE nome = 'Guaiamum'), 'Respiração adaptada para terra e água'),
+((SELECT id FROM especies WHERE nome = 'Tainha'), 'Capacidade de pular fora da água'),
+((SELECT id FROM especies WHERE nome = 'Tainha'), 'Nadadeiras potentes para nadar rápido'),
+((SELECT id FROM especies WHERE nome = 'Tainha'), 'Sistema de navegação em grupo'),
+((SELECT id FROM especies WHERE nome = 'Mangue-Branco'), 'Raízes respiratórias (pneumatóforos)'),
+((SELECT id FROM especies WHERE nome = 'Mangue-Branco'), 'Tolerância a diferentes níveis de sal'),
+((SELECT id FROM especies WHERE nome = 'Mangue-Branco'), 'Folhas que refletem luz solar excessiva')
 ON CONFLICT DO NOTHING;
 
--- Inserir conquistas padrão do sistema
+-- Inserir ameaças padrão (NOVO BLOCO DE DADOS INICIAIS)
+INSERT INTO ameacas (titulo, descricao, impacto, emoji) VALUES
+('Poluição por Plástico', 'Resíduos plásticos sufocam e prendem a fauna, além de liberar microplásticos na cadeia alimentar.', 'Morte de fauna, contaminação da cadeia alimentar.', '🗑️'),
+('Desmatamento', 'Corte de árvores do mangue para construção ou agricultura, removendo o berçário da vida marinha.', 'Perda de habitat, erosão do solo, redução da biodiversidade.', '🔪'),
+('Vazamento de Óleo', 'Derramamento de petróleo ou óleo que cobre as raízes e os animais, impedindo a respiração.', 'Asfixia da flora e fauna, destruição imediata do ecossistema.', '🛢️')
+ON CONFLICT (titulo) DO NOTHING;
+
+-- Inserir conquistas padrão do sistema (usa ON CONFLICT (id))
 INSERT INTO conquistas (id, nome, descricao, emoji, pontos) VALUES
 ('primeira_especie', 'Explorador Iniciante', 'Visualizou sua primeira espécie', '🔍', 10),
 ('memoria_facil', 'Memória Afiada', 'Completou o jogo da memória fácil', '🧠', 50),
@@ -252,8 +283,8 @@ FROM usuarios;
 -- ============================================
 DO $$
 BEGIN
-    RAISE NOTICE '✅ Script do banco de dados executado com sucesso!';
-    RAISE NOTICE '🔧 Tabelas de gamificação criadas e sincronizadas com a aplicação.';
+    RAISE NOTICE '✅ Script do banco de dados (v2.2) executado com sucesso!';
+    RAISE NOTICE '🔧 Restrições UNIQUE adicionadas e tabela ameacas criada.';
     RAISE NOTICE '👤 Usuário de teste criado -> Email: teste@exemplo.com | Senha: teste123';
     RAISE NOTICE '🚀 O sistema está pronto para registrar e exibir a pontuação dos usuários.';
 END $$;
