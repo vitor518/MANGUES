@@ -9,9 +9,9 @@ import { AmeacasPage } from './pages/AmeacasPage';
 import { JogoDaMemoria } from './pages/JogoDaMemoria';
 import { JogoConexoes } from './pages/JogoConexoes';
 import { ContatoFuncionalPage } from './pages/ContatoFuncionalPage';
-import { LoginPage } from './pages/LoginPage';
-import { CadastroPage } from './pages/CadastroPage';
-import { PerfilPage } from './pages/PerfilPage';
+import { LoginPage } from './pages/LoginPages';
+import { CadastroPage } from './pages/CadastroPages';
+import { PerfilPage } from './pages/PerfilPages';
 
 function App() {
   return (
