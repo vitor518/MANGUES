@@ -77,7 +77,14 @@ CREATE TABLE IF NOT EXISTS adaptacoes (
     UNIQUE (especie_id, adaptacao)
 );
 
-COMMENT ON TABLE adaptacoes IS 'Adaptações especiais de cada espécie.';
+CREATE TABLE IF NOT EXISTS ameacas (
+    id SERIAL PRIMARY KEY,
+    titulo VARCHAR(100) NOT NULL UNIQUE,
+    descricao TEXT NOT NULL,
+    impacto VARCHAR(255) NOT NULL,
+    emoji VARCHAR(10) NOT NULL,
+    criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
 -- Tabela de ameaças ao ecossistema
 CREATE TABLE IF NOT EXISTS ameacas (
@@ -119,9 +126,6 @@ CREATE TABLE IF NOT EXISTS conquistas (
     pontos INTEGER NOT NULL
 );
 
-COMMENT ON TABLE conquistas IS 'Catálogo de todas as conquistas possíveis no sistema.';
-
--- Tabela de conquistas desbloqueadas pelos usuários
 CREATE TABLE IF NOT EXISTS usuario_conquistas (
     id SERIAL PRIMARY KEY,
     usuario_id INTEGER REFERENCES usuarios(id) ON DELETE CASCADE,
@@ -130,22 +134,16 @@ CREATE TABLE IF NOT EXISTS usuario_conquistas (
     UNIQUE(usuario_id, conquista_id)
 );
 
-COMMENT ON TABLE usuario_conquistas IS 'Associa os usuários às conquistas que eles desbloquearam.';
-
--- Tabela de estatísticas de jogos
 CREATE TABLE IF NOT EXISTS estatisticas_jogos (
     id SERIAL PRIMARY KEY,
     usuario_id INTEGER REFERENCES usuarios(id) ON DELETE CASCADE,
-    tipo_jogo VARCHAR(20) NOT NULL, -- 'memoria', 'conexoes', etc.
-    dificuldade VARCHAR(20), -- 'facil', 'medio', 'dificil'
+    tipo_jogo VARCHAR(20) NOT NULL,
+    dificuldade VARCHAR(20),
     pontuacao INTEGER NOT NULL,
     data_jogo TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     completado BOOLEAN DEFAULT TRUE
 );
 
-COMMENT ON TABLE estatisticas_jogos IS 'Registra cada partida que um usuário joga.';
-
--- Tabela de espécies que o usuário já visualizou
 CREATE TABLE IF NOT EXISTS especies_visualizadas (
     id SERIAL PRIMARY KEY,
     usuario_id INTEGER REFERENCES usuarios(id) ON DELETE CASCADE,
@@ -154,9 +152,6 @@ CREATE TABLE IF NOT EXISTS especies_visualizadas (
     UNIQUE(usuario_id, especie_id)
 );
 
-COMMENT ON TABLE especies_visualizadas IS 'Diário de bordo das espécies que o usuário encontrou.';
-
--- Tabela de ameaças que o usuário já visualizou
 CREATE TABLE IF NOT EXISTS ameacas_visualizadas (
     id SERIAL PRIMARY KEY,
     usuario_id INTEGER REFERENCES usuarios(id) ON DELETE CASCADE,
@@ -165,9 +160,6 @@ CREATE TABLE IF NOT EXISTS ameacas_visualizadas (
     UNIQUE(usuario_id, ameaca_id)
 );
 
-COMMENT ON TABLE ameacas_visualizadas IS 'Registra as ameaças que o usuário já aprendeu.';
-
--- Tabela de ações contra ameaças que o usuário completou
 CREATE TABLE IF NOT EXISTS acoes_ameacas (
     id SERIAL PRIMARY KEY,
     usuario_id INTEGER REFERENCES usuarios(id) ON DELETE CASCADE,
@@ -295,19 +287,8 @@ LEFT JOIN adaptacoes a ON e.id = a.especie_id
 GROUP BY e.id
 ORDER BY e.nome;
 
--- View para estatísticas gerais de usuários
-CREATE OR REPLACE VIEW v_estatisticas_usuarios AS
-SELECT
-    COUNT(*) as total_usuarios,
-    COUNT(*) FILTER (WHERE ativo = true) as usuarios_ativos,
-    COUNT(*) FILTER (WHERE ultimo_acesso > NOW() - INTERVAL '30 days') as usuarios_ativos_mes,
-    SUM(total_pontos) as soma_total_pontos,
-    AVG(total_pontos) as media_pontos_por_usuario
-FROM usuarios;
+-- Views and other data can be added here as needed by the application logic.
 
--- ============================================
--- FIM DO SCRIPT
--- ============================================
 DO $$
 BEGIN
     RAISE NOTICE '✅ Script do banco de dados (v2.3) executado com sucesso!';

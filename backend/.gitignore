@@ -1,0 +1,14 @@
+# Arquivos de ambiente locais. NUNCA devem ser enviados para o Git.
+.env
+
+# Logs de dependências e erros
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# Diretório de build (caso aplicável)
+dist/
+
+# Arquivos de sistema operacional
+.DS_Store
+Thumbs.db

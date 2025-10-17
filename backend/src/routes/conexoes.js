@@ -1,60 +1,54 @@
+// ====================================================================================
+//              ROTA DA API DE JOGO DE CONEXÕES - (DATABASE-DRIVEN)
+// ====================================================================================
+// Responsável: Jules (Engenheiro de Software AI)
+// Data: 2025-10-17
+// Descrição: Esta rota fornece dados para o Jogo de Conexões. Ela busca
+// dinamicamente espécies e uma de suas adaptações (o "superpoder") no banco de dados.
+// ====================================================================================
+
 import express from 'express';
+import { query } from '../config/database.js';
+
 const router = express.Router();
 
-// Data for the connections game
-const animaisConexoes = [
-  { 
-    id: 1, 
-    nome: "Caranguejo-uçá", 
-    imagem: "🦀", 
-    categoria: "animal",
-    superpoder: "Oxigena o solo fazendo buracos na lama"
-  },
-  { 
-    id: 2, 
-    nome: "Garça-branca", 
-    imagem: "🦢", 
-    categoria: "animal",
-    superpoder: "Controla a população de peixes e crustáceos"
-  },
-  { 
-    id: 3, 
-    nome: "Mangue-vermelho", 
-    imagem: "🌳", 
-    categoria: "planta",
-    superpoder: "Filtra a água salgada com suas raízes especiais"
-  },
-  { 
-    id: 4, 
-    nome: "Peixe-boi", 
-    imagem: "🐋", 
-    categoria: "animal",
-    superpoder: "Limpa a vegetação aquática mantendo o ecossistema"
-  },
-  { 
-    id: 5, 
-    nome: "Guará", 
-    imagem: "🦩", 
-    categoria: "animal",
-    superpoder: "Espalha sementes voando entre os mangues"
-  },
-  { 
-    id: 6, 
-    nome: "Sabiá-da-praia", 
-    imagem: "🐦", 
-    categoria: "animal",
-    superpoder: "Controla insetos com seu canto e alimentação"
-  }
-];
+/**
+ * @route   GET /api/conexoes
+ * @desc    Obtém uma lista de itens para o Jogo de Conexões.
+ * @query   limit - O número de conexões a serem retornadas (padrão: 6).
+ * @access  Public
+ */
+router.get('/conexoes', async (req, res) => {
+  const limit = parseInt(req.query.limit, 10) || 6;
+  console.log(`Recebida requisição para GET /api/conexoes com limite de ${limit}.`);
 
-// GET /api/conexoes - Get animals for the connections game
-router.get('/conexoes', (req, res) => {
   try {
-    setTimeout(() => {
-      res.json(animaisConexoes);
-    }, 200);
+    // Busca espécies que tenham pelo menos uma adaptação registrada
+    const { rows } = await query(
+      `SELECT e.id, e.nome, e.imagem, e.categoria, a.adaptacao AS superpoder
+       FROM especies e
+       JOIN adaptacoes a ON e.id = a.especie_id
+       WHERE e.imagem IS NOT NULL AND e.imagem != ''
+       -- Pega apenas uma adaptação por espécie para o jogo
+       AND a.id IN (
+         SELECT MIN(id) FROM adaptacoes GROUP BY especie_id
+       )
+       ORDER BY RANDOM()
+       LIMIT $1`,
+      [limit]
+    );
+
+    if (rows.length < limit) {
+      console.warn(`Aviso: Foram solicitadas ${limit} conexões, mas apenas ${rows.length} foram encontradas no DB.`);
+    }
+
+    console.log(`Retornando ${rows.length} itens para o Jogo de Conexões.`);
+    res.json(rows);
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao buscar dados das conexões' });
+    res.status(500).json({
+      error: 'Erro Interno do Servidor',
+      message: 'Não foi possível carregar os dados para o Jogo de Conexões.',
+    });
   }
 });
 
