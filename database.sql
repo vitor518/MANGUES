@@ -1,21 +1,49 @@
 -- ====================================================================================
 --              SCRIPT COMPLETO DO BANCO DE DADOS - PROJETO MANGUES (CORRIGIDO)
 -- ====================================================================================
--- Versão: 2.2
+-- Versão: 2.3
 -- Data: 2025-10-17
--- Correção: Adição de restrições UNIQUE para 'ON CONFLICT' e inclusão da tabela 'ameacas'.
+-- Correção: Substituição de 'email' por 'apelido' e ajustes nas restrições UNIQUE
 -- ====================================================================================
+
+-- ============================================
+-- 0. LIMPAR BANCO DE DADOS (DROP TABLES)
+-- ============================================
+-- ATENÇÃO: Isso vai apagar TODOS os dados! Use com cuidado!
+
+-- Remover views primeiro
+DROP VIEW IF EXISTS v_especies_completas CASCADE;
+DROP VIEW IF EXISTS v_estatisticas_usuarios CASCADE;
+
+-- Remover triggers e funções
+DROP TRIGGER IF EXISTS trigger_especies_timestamp ON especies;
+DROP FUNCTION IF EXISTS atualizar_timestamp() CASCADE;
+
+-- Remover tabelas dependentes primeiro (que têm foreign keys)
+DROP TABLE IF EXISTS acoes_ameacas CASCADE;
+DROP TABLE IF EXISTS ameacas_visualizadas CASCADE;
+DROP TABLE IF EXISTS especies_visualizadas CASCADE;
+DROP TABLE IF EXISTS estatisticas_jogos CASCADE;
+DROP TABLE IF EXISTS usuario_conquistas CASCADE;
+DROP TABLE IF EXISTS contatos CASCADE;
+DROP TABLE IF EXISTS adaptacoes CASCADE;
+
+-- Remover tabelas principais
+DROP TABLE IF EXISTS ameacas CASCADE;
+DROP TABLE IF EXISTS conquistas CASCADE;
+DROP TABLE IF EXISTS especies CASCADE;
+DROP TABLE IF EXISTS usuarios CASCADE;
 
 -- ============================================
 -- 1. TABELAS PRINCIPAIS
 -- ============================================
 
--- Tabela de usuários
+-- Tabela de usuários (CORRIGIDA: email substituído por apelido)
 CREATE TABLE IF NOT EXISTS usuarios (
     id SERIAL PRIMARY KEY,
     nome VARCHAR(100) NOT NULL,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    senha_hash VARCHAR(255) NOT NULL,
+    apelido VARCHAR(100) UNIQUE NOT NULL, -- CORREÇÃO APLICADA AQUI
+    senha VARCHAR(255) NOT NULL, -- Renomeado de senha_hash para senha
     avatar VARCHAR(10) DEFAULT '🦀',
     data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     ultimo_acesso TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -25,12 +53,12 @@ CREATE TABLE IF NOT EXISTS usuarios (
 );
 
 COMMENT ON TABLE usuarios IS 'Tabela de usuários do sistema, com pontuação e visitas.';
-COMMENT ON COLUMN usuarios.senha_hash IS 'Senha criptografada com bcrypt.';
+COMMENT ON COLUMN usuarios.senha IS 'Senha do usuário (deve ser criptografada na aplicação).';
 
 -- Tabela de espécies (CORRIGIDA: nome agora é UNIQUE para permitir ON CONFLICT)
 CREATE TABLE IF NOT EXISTS especies (
     id SERIAL PRIMARY KEY,
-    nome VARCHAR(255) NOT NULL UNIQUE, -- CORREÇÃO APLICADA AQUI
+    nome VARCHAR(255) NOT NULL UNIQUE,
     descricao TEXT NOT NULL,
     habitat TEXT NOT NULL,
     imagem VARCHAR(10) NOT NULL,
@@ -46,12 +74,12 @@ CREATE TABLE IF NOT EXISTS adaptacoes (
     especie_id INTEGER REFERENCES especies(id) ON DELETE CASCADE,
     adaptacao TEXT NOT NULL,
     criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (especie_id, adaptacao) -- CORREÇÃO APLICADA AQUI
+    UNIQUE (especie_id, adaptacao)
 );
 
 COMMENT ON TABLE adaptacoes IS 'Adaptações especiais de cada espécie.';
 
--- Tabela de ameaças ao ecossistema (TABELA ADICIONAL NECESSÁRIA)
+-- Tabela de ameaças ao ecossistema
 CREATE TABLE IF NOT EXISTS ameacas (
     id SERIAL PRIMARY KEY,
     titulo VARCHAR(100) NOT NULL UNIQUE,
@@ -63,7 +91,7 @@ CREATE TABLE IF NOT EXISTS ameacas (
 
 COMMENT ON TABLE ameacas IS 'Lista de ameaças ao ecossistema do mangue.';
 
--- Tabela de contatos
+-- Tabela de contatos (CORRIGIDA: campo email mantido aqui pois faz sentido)
 CREATE TABLE IF NOT EXISTS contatos (
     id SERIAL PRIMARY KEY,
     usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
@@ -128,22 +156,22 @@ CREATE TABLE IF NOT EXISTS especies_visualizadas (
 
 COMMENT ON TABLE especies_visualizadas IS 'Diário de bordo das espécies que o usuário encontrou.';
 
--- Tabela de ameaças que o usuário já visualizou (CORRIGIDA: referência a tabela 'ameacas')
+-- Tabela de ameaças que o usuário já visualizou
 CREATE TABLE IF NOT EXISTS ameacas_visualizadas (
     id SERIAL PRIMARY KEY,
     usuario_id INTEGER REFERENCES usuarios(id) ON DELETE CASCADE,
-    ameaca_id INTEGER REFERENCES ameacas(id) ON DELETE CASCADE, -- CORREÇÃO APLICADA AQUI
+    ameaca_id INTEGER REFERENCES ameacas(id) ON DELETE CASCADE,
     data_visualizacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(usuario_id, ameaca_id)
 );
 
 COMMENT ON TABLE ameacas_visualizadas IS 'Registra as ameaças que o usuário já aprendeu.';
 
--- Tabela de ações contra ameaças que o usuário completou (CORRIGIDA: referência a tabela 'ameacas')
+-- Tabela de ações contra ameaças que o usuário completou
 CREATE TABLE IF NOT EXISTS acoes_ameacas (
     id SERIAL PRIMARY KEY,
     usuario_id INTEGER REFERENCES usuarios(id) ON DELETE CASCADE,
-    ameaca_id INTEGER REFERENCES ameacas(id) ON DELETE CASCADE, -- CORREÇÃO APLICADA AQUI
+    ameaca_id INTEGER REFERENCES ameacas(id) ON DELETE CASCADE,
     acao_index INTEGER NOT NULL,
     data_conclusao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(usuario_id, ameaca_id, acao_index)
@@ -154,14 +182,14 @@ COMMENT ON TABLE acoes_ameacas IS 'Registra as ações de mitigação de ameaça
 -- ============================================
 -- 3. ÍNDICES PARA PERFORMANCE
 -- ============================================
-CREATE INDEX IF NOT EXISTS idx_usuarios_email ON usuarios(email);
+CREATE INDEX IF NOT EXISTS idx_usuarios_apelido ON usuarios(apelido); -- CORREÇÃO APLICADA
 CREATE INDEX IF NOT EXISTS idx_usuarios_pontos ON usuarios(total_pontos DESC);
 CREATE INDEX IF NOT EXISTS idx_especies_nome ON especies(nome);
 CREATE INDEX IF NOT EXISTS idx_adaptacoes_especie ON adaptacoes(especie_id);
 CREATE INDEX IF NOT EXISTS idx_contatos_usuario ON contatos(usuario_id);
 CREATE INDEX IF NOT EXISTS idx_stats_jogos_usuario ON estatisticas_jogos(usuario_id);
 CREATE INDEX IF NOT EXISTS idx_user_conquistas ON usuario_conquistas(usuario_id, conquista_id);
-CREATE INDEX IF NOT EXISTS idx_ameacas_titulo ON ameacas(titulo); -- NOVO ÍNDICE
+CREATE INDEX IF NOT EXISTS idx_ameacas_titulo ON ameacas(titulo);
 
 -- ============================================
 -- 4. DADOS INICIAIS (SEMENTE)
@@ -178,7 +206,6 @@ INSERT INTO especies (nome, descricao, habitat, imagem) VALUES
 ON CONFLICT (nome) DO NOTHING;
 
 -- Inserir adaptações das espécies (usa ON CONFLICT DO NOTHING)
--- O ON CONFLICT agora funciona graças à restrição UNIQUE(especie_id, adaptacao)
 INSERT INTO adaptacoes (especie_id, adaptacao) VALUES
 ((SELECT id FROM especies WHERE nome = 'Caranguejo-Uçá'), 'Brânquias modificadas para respirar fora da água'),
 ((SELECT id FROM especies WHERE nome = 'Caranguejo-Uçá'), 'Garras fortes para cavar buracos profundos'),
@@ -200,14 +227,14 @@ INSERT INTO adaptacoes (especie_id, adaptacao) VALUES
 ((SELECT id FROM especies WHERE nome = 'Mangue-Branco'), 'Folhas que refletem luz solar excessiva')
 ON CONFLICT DO NOTHING;
 
--- Inserir ameaças padrão (NOVO BLOCO DE DADOS INICIAIS)
+-- Inserir ameaças padrão
 INSERT INTO ameacas (titulo, descricao, impacto, emoji) VALUES
 ('Poluição por Plástico', 'Resíduos plásticos sufocam e prendem a fauna, além de liberar microplásticos na cadeia alimentar.', 'Morte de fauna, contaminação da cadeia alimentar.', '🗑️'),
 ('Desmatamento', 'Corte de árvores do mangue para construção ou agricultura, removendo o berçário da vida marinha.', 'Perda de habitat, erosão do solo, redução da biodiversidade.', '🔪'),
 ('Vazamento de Óleo', 'Derramamento de petróleo ou óleo que cobre as raízes e os animais, impedindo a respiração.', 'Asfixia da flora e fauna, destruição imediata do ecossistema.', '🛢️')
 ON CONFLICT (titulo) DO NOTHING;
 
--- Inserir conquistas padrão do sistema (usa ON CONFLICT (id))
+-- Inserir conquistas padrão do sistema
 INSERT INTO conquistas (id, nome, descricao, emoji, pontos) VALUES
 ('primeira_especie', 'Explorador Iniciante', 'Visualizou sua primeira espécie', '🔍', 10),
 ('memoria_facil', 'Memória Afiada', 'Completou o jogo da memória fácil', '🧠', 50),
@@ -225,10 +252,10 @@ ON CONFLICT (id) DO UPDATE SET
     emoji = EXCLUDED.emoji,
     pontos = EXCLUDED.pontos;
 
--- Criar usuário de teste para desenvolvimento (senha: teste123)
-INSERT INTO usuarios (nome, email, senha_hash) VALUES
-('Usuário Teste', 'teste@exemplo.com', '$2b$10$XqJy7LqKZQr5JXI.nKmU0.3XHzXZYMvVWPQHVm5l6xPPqJXZQfJQW')
-ON CONFLICT (email) DO NOTHING;
+-- Criar usuário de teste para desenvolvimento (CORRIGIDO: usando apelido)
+INSERT INTO usuarios (nome, apelido, senha) VALUES
+('Usuário Teste', 'teste', 'teste123')
+ON CONFLICT (apelido) DO NOTHING;
 
 -- ============================================
 -- 5. FUNÇÕES E TRIGGERS
@@ -283,8 +310,8 @@ FROM usuarios;
 -- ============================================
 DO $$
 BEGIN
-    RAISE NOTICE '✅ Script do banco de dados (v2.2) executado com sucesso!';
-    RAISE NOTICE '🔧 Restrições UNIQUE adicionadas e tabela ameacas criada.';
-    RAISE NOTICE '👤 Usuário de teste criado -> Email: teste@exemplo.com | Senha: teste123';
-    RAISE NOTICE '🚀 O sistema está pronto para registrar e exibir a pontuação dos usuários.';
+    RAISE NOTICE '✅ Script do banco de dados (v2.3) executado com sucesso!';
+    RAISE NOTICE '🔧 Campo EMAIL substituído por APELIDO na tabela usuarios.';
+    RAISE NOTICE '👤 Usuário de teste criado -> Apelido: teste | Senha: teste123';
+    RAISE NOTICE '🚀 O sistema está pronto para funcionar com apelidos!';
 END $$;
